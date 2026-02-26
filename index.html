@@ -89,11 +89,11 @@
         .chart-container { position: relative; height: 100%; width: 100%; min-height: 0; flex-grow: 1; display: flex; align-items: center; justify-content: center;}
         
         #mapContainer { position: relative; width: 100%; height: 100%; flex-grow: 1; }
-        #map { position: absolute; inset: 0; z-index: 1; background: #e5e7eb; } /* Fundo claro para o mapa */
+        #map { position: absolute; inset: 0; z-index: 1; background: #e5e7eb; } 
 
-        /* Estilo para mapa Leaflet GeoJSON - Foco no contorno */
-        .state-polygon { transition: fill-opacity 0.3s, stroke-width 0.3s, stroke 0.3s; cursor: pointer; }
-        .state-polygon:hover { fill-opacity: 0.15 !important; stroke-width: 3px !important; }
+        /* Estilo para mapa Leaflet GeoJSON - Apenas Contorno */
+        .state-polygon { transition: stroke-width 0.3s, stroke 0.3s; cursor: pointer; fill-opacity: 0 !important; }
+        .state-polygon:hover { stroke-width: 3px !important; }
 
         .wiki-link { cursor: pointer; transition: color 0.2s; position: relative; display: inline-block; }
         .wiki-link::after { content: ''; position: absolute; width: 100%; transform: scaleX(0); height: 1px; bottom: 0; left: 0; background-color: var(--theme-secondary); transform-origin: bottom right; transition: transform 0.25s ease-out; }
@@ -144,7 +144,7 @@
 
     <div class="grid-stack" id="mainGrid">
         
-        <!-- Identidade -->
+        <!-- Identidade (Governador Removido) -->
         <div class="grid-stack-item" gs-id="p-identity" gs-x="0" gs-y="0" gs-w="3" gs-h="3" gs-min-w="2" gs-min-h="3">
             <div class="grid-stack-item-content">
                 <div class="panel-header">
@@ -162,14 +162,10 @@
                             </div>
                         </div>
                     </div>
-                    <div class="grid grid-cols-2 gap-4 border-t border-slate-700 pt-3">
-                        <div>
-                            <div class="data-label">Governador(a)</div>
-                            <div id="governorName" class="text-sm font-medium mt-1 truncate wiki-link" title="Ver na Wikipedia">--</div>
-                        </div>
+                    <div class="grid grid-cols-1 gap-4 border-t border-slate-700 pt-3 text-center">
                         <div>
                             <div class="data-label">População (IBGE)</div>
-                            <div id="population" class="text-sm font-mono font-bold mt-1">--</div>
+                            <div id="population" class="text-xl font-mono font-bold mt-1 text-[var(--theme-secondary)]">--</div>
                         </div>
                     </div>
                 </div>
@@ -181,6 +177,7 @@
             <div class="grid-stack-item-content">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-cloud-sun mr-2"></i>Clima na Capital</span>
+                    <span id="weatherStatus"></span>
                 </div>
                 <div class="widget-body justify-center" id="climateWidget">
                     <div class="flex flex-col items-center text-center gap-2">
@@ -243,7 +240,7 @@
         <div class="grid-stack-item" gs-id="p-news" gs-x="3" gs-y="5" gs-w="6" gs-h="6" gs-min-w="4" gs-min-h="3">
             <div class="grid-stack-item-content">
                 <div class="panel-header">
-                    <span><i class="fa-regular fa-newspaper mr-2"></i>Notícias Regionais (Tempo Real)</span>
+                    <span><i class="fa-regular fa-newspaper mr-2"></i>Notícias Regionais (2min)</span>
                     <span id="newsStatus"><i class="fa-solid fa-circle-notch fa-spin text-slate-500"></i></span>
                 </div>
                 <div id="newsFeed" class="widget-body scrollable !p-0 bg-slate-900/30"></div>
@@ -277,6 +274,7 @@
             <div class="grid-stack-item-content">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-chart-line mr-2"></i>Indicadores Nacionais</span>
+                    <span id="econStatus"></span>
                 </div>
                 <div class="widget-body scrollable flex-col justify-start gap-4" id="marketWidget">
                     <div class="flex justify-between items-center border-b border-slate-700 pb-2">
@@ -312,6 +310,7 @@
             <div class="grid-stack-item-content">
                 <div class="panel-header">
                     <span><i class="fa-solid fa-calendar-days mr-2"></i>Próximos Feriados</span>
+                    <span id="holidayStatus"></span>
                 </div>
                 <div class="widget-body scrollable !p-0" id="holidaysWidget">
                     <div class="flex flex-col w-full h-full" id="holidaysList"></div>
@@ -358,50 +357,44 @@
     <script>
         const GamaBrasil = (() => {
             
-            // Dicionário offline com Cidades Satélites incluindo "Gama" no DF chumbado
+            // Dicionário offline com Cidades Satélites (Sem Governador e DF com Gama Chumbado)
             const BR_STATES = {
-                "AC": { name: "Acre", governor: "Gladson Cameli", regiao: "Norte", capital: "Rio Branco", lat: -9.97499, lng: -67.8243, pop: 830018, cities: [] },
-                "AL": { name: "Alagoas", governor: "Paulo Dantas", regiao: "Nordeste", capital: "Maceió", lat: -9.66599, lng: -35.735, pop: 3127683, cities: [{name:"Arapiraca", lat:-9.7522, lng:-36.6601}, {name:"Rio Largo", lat:-9.4795, lng:-35.8335}, {name:"Palmeira dos Índios", lat:-9.4071, lng:-36.6268}] },
-                "AP": { name: "Amapá", governor: "Clécio Luís", regiao: "Norte", capital: "Macapá", lat: 0.034934, lng: -51.0694, pop: 733759, cities: [] },
-                "AM": { name: "Amazonas", governor: "Wilson Lima", regiao: "Norte", capital: "Manaus", lat: -3.10719, lng: -60.0261, pop: 3941613, cities: [{name:"Parintins", lat:-2.6284, lng:-56.7329}, {name:"Itacoatiara", lat:-3.1416, lng:-58.4441}, {name:"Manacapuru", lat:-3.2995, lng:-60.6201}] },
-                "BA": { name: "Bahia", governor: "Jerônimo Rodrigues", regiao: "Nordeste", capital: "Salvador", lat: -12.9718, lng: -38.5011, pop: 14141626, cities: [{name:"Feira de Santana", lat:-12.266, lng:-38.966}, {name:"Vitória da Conquista", lat:-14.8661, lng:-40.8394}, {name:"Camaçari", lat:-12.6975, lng:-38.3242}] },
-                "CE": { name: "Ceará", governor: "Elmano de Freitas", regiao: "Nordeste", capital: "Fortaleza", lat: -3.71839, lng: -38.5434, pop: 8794957, cities: [{name:"Caucaia", lat:-3.7327, lng:-38.6531}, {name:"Juazeiro do Norte", lat:-7.2104, lng:-39.3155}, {name:"Maracanaú", lat:-3.8767, lng:-38.6256}] },
-                "DF": { name: "Distrito Federal", governor: "Ibaneis Rocha", regiao: "Centro-Oeste", capital: "Brasília", lat: -15.7795, lng: -47.9297, pop: 2817381, cities: [{name:"Ceilândia", lat:-15.8208, lng:-48.1132}, {name:"Samambaia", lat:-15.8732, lng:-48.0834}, {name:"Taguatinga", lat:-15.8336, lng:-48.0566}, {name:"Gama", lat:-16.0167, lng:-48.0667}] }, // GAMA chumbado aqui
-                "ES": { name: "Espírito Santo", governor: "Renato Casagrande", regiao: "Sudeste", capital: "Vitória", lat: -20.3188, lng: -40.3378, pop: 3833712, cities: [{name:"Serra", lat:-20.1268, lng:-40.3061}, {name:"Vila Velha", lat:-20.3297, lng:-40.2925}, {name:"Cariacica", lat:-20.2638, lng:-40.4201}] },
-                "GO": { name: "Goiás", governor: "Ronaldo Caiado", regiao: "Centro-Oeste", capital: "Goiânia", lat: -16.6799, lng: -49.255, pop: 7056495, cities: [{name:"Aparecida de Goiânia", lat:-16.8213, lng:-49.2435}, {name:"Anápolis", lat:-16.3267, lng:-48.9529}, {name:"Rio Verde", lat:-17.7947, lng:-50.9238}] },
-                "MA": { name: "Maranhão", governor: "Carlos Brandão", regiao: "Nordeste", capital: "São Luís", lat: -2.5293, lng: -44.3028, pop: 6775805, cities: [{name:"Imperatriz", lat:-5.5152, lng:-47.4722}, {name:"São José de Ribamar", lat:-2.5604, lng:-44.0537}, {name:"Timon", lat:-5.088, lng:-42.8291}] },
-                "MT": { name: "Mato Grosso", governor: "Mauro Mendes", regiao: "Centro-Oeste", capital: "Cuiabá", lat: -15.5989, lng: -56.0949, pop: 3658649, cities: [{name:"Várzea Grande", lat:-15.6461, lng:-56.1326}, {name:"Rondonópolis", lat:-16.4716, lng:-54.6368}, {name:"Sinop", lat:-11.8596, lng:-55.5034}] },
-                "MS": { name: "Mato Grosso do Sul", governor: "Eduardo Riedel", regiao: "Centro-Oeste", capital: "Campo Grande", lat: -20.4486, lng: -54.6295, pop: 2757013, cities: [{name:"Dourados", lat:-22.2215, lng:-54.8087}, {name:"Três Lagoas", lat:-20.7516, lng:-51.7018}, {name:"Corumbá", lat:-19.009, lng:-57.6533}] },
-                "MG": { name: "Minas Gerais", governor: "Romeu Zema", regiao: "Sudeste", capital: "Belo Horizonte", lat: -19.9245, lng: -43.9352, pop: 20538718, cities: [{name:"Uberlândia", lat:-18.9186, lng:-48.2772}, {name:"Contagem", lat:-19.9317, lng:-44.0538}, {name:"Juiz de Fora", lat:-21.7642, lng:-43.3496}] },
-                "PA": { name: "Pará", governor: "Helder Barbalho", regiao: "Norte", capital: "Belém", lat: -1.4554, lng: -48.4898, pop: 8121025, cities: [{name:"Ananindeua", lat:-1.3656, lng:-48.3752}, {name:"Santarém", lat:-2.4431, lng:-54.7082}, {name:"Marabá", lat:-5.3686, lng:-49.1189}] },
-                "PB": { name: "Paraíba", governor: "João Azevêdo", regiao: "Nordeste", capital: "João Pessoa", lat: -7.11532, lng: -34.861, pop: 3974687, cities: [{name:"Campina Grande", lat:-7.2289, lng:-35.8812}, {name:"Santa Rita", lat:-7.1147, lng:-34.978}, {name:"Patos", lat:-7.0261, lng:-37.2758}] },
-                "PR": { name: "Paraná", governor: "Ratinho Júnior", regiao: "Sul", capital: "Curitiba", lat: -25.429, lng: -49.2671, pop: 11444380, cities: [{name:"Londrina", lat:-23.3103, lng:-51.1628}, {name:"Maringá", lat:-23.421, lng:-51.9331}, {name:"Ponta Grossa", lat:-25.0916, lng:-50.1668}] },
-                "PE": { name: "Pernambuco", governor: "Raquel Lyra", regiao: "Nordeste", capital: "Recife", lat: -8.04756, lng: -34.877, pop: 9058931, cities: [{name:"Jaboatão dos Guararapes", lat:-8.1139, lng:-35.0153}, {name:"Olinda", lat:-8.0089, lng:-34.8553}, {name:"Caruaru", lat:-8.2833, lng:-35.9761}] },
-                "PI": { name: "Piauí", governor: "Rafael Fonteles", regiao: "Nordeste", capital: "Teresina", lat: -5.08921, lng: -42.8016, pop: 3271199, cities: [{name:"Parnaíba", lat:-2.9038, lng:-41.7774}, {name:"Picos", lat:-7.085, lng:-41.4667}, {name:"Piripiri", lat:-4.2754, lng:-41.7765}] },
-                "RJ": { name: "Rio de Janeiro", governor: "Cláudio Castro", regiao: "Sudeste", capital: "Rio de Janeiro", lat: -22.9035, lng: -43.2096, pop: 16054524, cities: [{name:"São Gonçalo", lat:-22.8269, lng:-43.0539}, {name:"Duque de Caxias", lat:-22.7856, lng:-43.3117}, {name:"Nova Iguaçu", lat:-22.7561, lng:-43.4607}] },
-                "RN": { name: "Rio Grande do Norte", governor: "Fátima Bezerra", regiao: "Nordeste", capital: "Natal", lat: -5.795, lng: -35.2094, pop: 3302729, cities: [{name:"Mossoró", lat:-5.1878, lng:-37.3411}, {name:"Parnamirim", lat:-5.9149, lng:-35.2625}, {name:"São Gonçalo do Amarante", lat:-5.7938, lng:-35.3283}] },
-                "RS": { name: "Rio Grande do Sul", governor: "Eduardo Leite", regiao: "Sul", capital: "Porto Alegre", lat: -30.0331, lng: -51.23, pop: 10882965, cities: [{name:"Caxias do Sul", lat:-29.1683, lng:-51.1794}, {name:"Pelotas", lat:-31.7719, lng:-52.3425}, {name:"Canoas", lat:-29.9174, lng:-51.1837}] },
-                "RO": { name: "Rondônia", governor: "Marcos Rocha", regiao: "Norte", capital: "Porto Velho", lat: -8.76116, lng: -63.9004, pop: 1581196, cities: [{name:"Ji-Paraná", lat:-10.8807, lng:-61.9443}, {name:"Ariquemes", lat:-9.9057, lng:-63.0332}, {name:"Vilhena", lat:-12.7404, lng:-60.1458}] },
-                "RR": { name: "Roraima", governor: "Antonio Denarium", regiao: "Norte", capital: "Boa Vista", lat: 2.8235, lng: -60.6758, pop: 636269, cities: [] },
-                "SC": { name: "Santa Catarina", governor: "Jorginho Mello", regiao: "Sul", capital: "Florianópolis", lat: -27.5969, lng: -48.5495, pop: 7610361, cities: [{name:"Joinville", lat:-26.3045, lng:-48.8487}, {name:"Blumenau", lat:-26.9194, lng:-49.0661}, {name:"São José", lat:-27.6136, lng:-48.627}] },
-                "SP": { name: "São Paulo", governor: "Tarcísio de Freitas", regiao: "Sudeste", capital: "São Paulo", lat: -23.5505, lng: -46.6333, pop: 44411238, cities: [{name:"Guarulhos", lat:-23.4628, lng:-46.5333}, {name:"Campinas", lat:-22.9099, lng:-47.0626}, {name:"São Bernardo do Campo", lat:-23.6939, lng:-46.565}] },
-                "SE": { name: "Sergipe", governor: "Fábio Mitidieri", regiao: "Nordeste", capital: "Aracaju", lat: -10.9472, lng: -37.0731, pop: 2209558, cities: [{name:"Nossa Senhora do Socorro", lat:-10.8542, lng:-37.1264}, {name:"Lagarto", lat:-10.915, lng:-37.6681}, {name:"Itabaiana", lat:-10.6861, lng:-37.4261}] },
-                "TO": { name: "Tocantins", governor: "Wanderlei Barbosa", regiao: "Norte", capital: "Palmas", lat: -10.1675, lng: -48.3277, pop: 1511460, cities: [{name:"Araguaína", lat:-7.1911, lng:-48.2072}, {name:"Gurupi", lat:-11.7292, lng:-49.0686}, {name:"Porto Nacional", lat:-10.7081, lng:-48.4172}] }
+                "AC": { name: "Acre", regiao: "Norte", capital: "Rio Branco", lat: -9.97499, lng: -67.8243, pop: 830018, cities: [] },
+                "AL": { name: "Alagoas", regiao: "Nordeste", capital: "Maceió", lat: -9.66599, lng: -35.735, pop: 3127683, cities: [{name:"Arapiraca", lat:-9.7522, lng:-36.6601}, {name:"Rio Largo", lat:-9.4795, lng:-35.8335}, {name:"Palmeira dos Índios", lat:-9.4071, lng:-36.6268}] },
+                "AP": { name: "Amapá", regiao: "Norte", capital: "Macapá", lat: 0.034934, lng: -51.0694, pop: 733759, cities: [] },
+                "AM": { name: "Amazonas", regiao: "Norte", capital: "Manaus", lat: -3.10719, lng: -60.0261, pop: 3941613, cities: [{name:"Parintins", lat:-2.6284, lng:-56.7329}, {name:"Itacoatiara", lat:-3.1416, lng:-58.4441}, {name:"Manacapuru", lat:-3.2995, lng:-60.6201}] },
+                "BA": { name: "Bahia", regiao: "Nordeste", capital: "Salvador", lat: -12.9718, lng: -38.5011, pop: 14141626, cities: [{name:"Feira de Santana", lat:-12.266, lng:-38.966}, {name:"Vitória da Conquista", lat:-14.8661, lng:-40.8394}, {name:"Camaçari", lat:-12.6975, lng:-38.3242}] },
+                "CE": { name: "Ceará", regiao: "Nordeste", capital: "Fortaleza", lat: -3.71839, lng: -38.5434, pop: 8794957, cities: [{name:"Caucaia", lat:-3.7327, lng:-38.6531}, {name:"Juazeiro do Norte", lat:-7.2104, lng:-39.3155}, {name:"Maracanaú", lat:-3.8767, lng:-38.6256}] },
+                "DF": { name: "Distrito Federal", regiao: "Centro-Oeste", capital: "Brasília", lat: -15.7795, lng: -47.9297, pop: 2817381, cities: [{name:"Ceilândia", lat:-15.8208, lng:-48.1132}, {name:"Samambaia", lat:-15.8732, lng:-48.0834}, {name:"Taguatinga", lat:-15.8336, lng:-48.0566}, {name:"Gama", lat:-16.0167, lng:-48.0667}] }, // GAMA aqui
+                "ES": { name: "Espírito Santo", regiao: "Sudeste", capital: "Vitória", lat: -20.3188, lng: -40.3378, pop: 3833712, cities: [{name:"Serra", lat:-20.1268, lng:-40.3061}, {name:"Vila Velha", lat:-20.3297, lng:-40.2925}, {name:"Cariacica", lat:-20.2638, lng:-40.4201}] },
+                "GO": { name: "Goiás", regiao: "Centro-Oeste", capital: "Goiânia", lat: -16.6799, lng: -49.255, pop: 7056495, cities: [{name:"Aparecida de Goiânia", lat:-16.8213, lng:-49.2435}, {name:"Anápolis", lat:-16.3267, lng:-48.9529}, {name:"Rio Verde", lat:-17.7947, lng:-50.9238}] },
+                "MA": { name: "Maranhão", regiao: "Nordeste", capital: "São Luís", lat: -2.5293, lng: -44.3028, pop: 6775805, cities: [{name:"Imperatriz", lat:-5.5152, lng:-47.4722}, {name:"São José de Ribamar", lat:-2.5604, lng:-44.0537}, {name:"Timon", lat:-5.088, lng:-42.8291}] },
+                "MT": { name: "Mato Grosso", regiao: "Centro-Oeste", capital: "Cuiabá", lat: -15.5989, lng: -56.0949, pop: 3658649, cities: [{name:"Várzea Grande", lat:-15.6461, lng:-56.1326}, {name:"Rondonópolis", lat:-16.4716, lng:-54.6368}, {name:"Sinop", lat:-11.8596, lng:-55.5034}] },
+                "MS": { name: "Mato Grosso do Sul", regiao: "Centro-Oeste", capital: "Campo Grande", lat: -20.4486, lng: -54.6295, pop: 2757013, cities: [{name:"Dourados", lat:-22.2215, lng:-54.8087}, {name:"Três Lagoas", lat:-20.7516, lng:-51.7018}, {name:"Corumbá", lat:-19.009, lng:-57.6533}] },
+                "MG": { name: "Minas Gerais", regiao: "Sudeste", capital: "Belo Horizonte", lat: -19.9245, lng: -43.9352, pop: 20538718, cities: [{name:"Uberlândia", lat:-18.9186, lng:-48.2772}, {name:"Contagem", lat:-19.9317, lng:-44.0538}, {name:"Juiz de Fora", lat:-21.7642, lng:-43.3496}] },
+                "PA": { name: "Pará", regiao: "Norte", capital: "Belém", lat: -1.4554, lng: -48.4898, pop: 8121025, cities: [{name:"Ananindeua", lat:-1.3656, lng:-48.3752}, {name:"Santarém", lat:-2.4431, lng:-54.7082}, {name:"Marabá", lat:-5.3686, lng:-49.1189}] },
+                "PB": { name: "Paraíba", regiao: "Nordeste", capital: "João Pessoa", lat: -7.11532, lng: -34.861, pop: 3974687, cities: [{name:"Campina Grande", lat:-7.2289, lng:-35.8812}, {name:"Santa Rita", lat:-7.1147, lng:-34.978}, {name:"Patos", lat:-7.0261, lng:-37.2758}] },
+                "PR": { name: "Paraná", regiao: "Sul", capital: "Curitiba", lat: -25.429, lng: -49.2671, pop: 11444380, cities: [{name:"Londrina", lat:-23.3103, lng:-51.1628}, {name:"Maringá", lat:-23.421, lng:-51.9331}, {name:"Ponta Grossa", lat:-25.0916, lng:-50.1668}] },
+                "PE": { name: "Pernambuco", regiao: "Nordeste", capital: "Recife", lat: -8.04756, lng: -34.877, pop: 9058931, cities: [{name:"Jaboatão dos Guararapes", lat:-8.1139, lng:-35.0153}, {name:"Olinda", lat:-8.0089, lng:-34.8553}, {name:"Caruaru", lat:-8.2833, lng:-35.9761}] },
+                "PI": { name: "Piauí", regiao: "Nordeste", capital: "Teresina", lat: -5.08921, lng: -42.8016, pop: 3271199, cities: [{name:"Parnaíba", lat:-2.9038, lng:-41.7774}, {name:"Picos", lat:-7.085, lng:-41.4667}, {name:"Piripiri", lat:-4.2754, lng:-41.7765}] },
+                "RJ": { name: "Rio de Janeiro", regiao: "Sudeste", capital: "Rio de Janeiro", lat: -22.9035, lng: -43.2096, pop: 16054524, cities: [{name:"São Gonçalo", lat:-22.8269, lng:-43.0539}, {name:"Duque de Caxias", lat:-22.7856, lng:-43.3117}, {name:"Nova Iguaçu", lat:-22.7561, lng:-43.4607}] },
+                "RN": { name: "Rio Grande do Norte", regiao: "Nordeste", capital: "Natal", lat: -5.795, lng: -35.2094, pop: 3302729, cities: [{name:"Mossoró", lat:-5.1878, lng:-37.3411}, {name:"Parnamirim", lat:-5.9149, lng:-35.2625}, {name:"São Gonçalo do Amarante", lat:-5.7938, lng:-35.3283}] },
+                "RS": { name: "Rio Grande do Sul", regiao: "Sul", capital: "Porto Alegre", lat: -30.0331, lng: -51.23, pop: 10882965, cities: [{name:"Caxias do Sul", lat:-29.1683, lng:-51.1794}, {name:"Pelotas", lat:-31.7719, lng:-52.3425}, {name:"Canoas", lat:-29.9174, lng:-51.1837}] },
+                "RO": { name: "Rondônia", regiao: "Norte", capital: "Porto Velho", lat: -8.76116, lng: -63.9004, pop: 1581196, cities: [{name:"Ji-Paraná", lat:-10.8807, lng:-61.9443}, {name:"Ariquemes", lat:-9.9057, lng:-63.0332}, {name:"Vilhena", lat:-12.7404, lng:-60.1458}] },
+                "RR": { name: "Roraima", regiao: "Norte", capital: "Boa Vista", lat: 2.8235, lng: -60.6758, pop: 636269, cities: [] },
+                "SC": { name: "Santa Catarina", regiao: "Sul", capital: "Florianópolis", lat: -27.5969, lng: -48.5495, pop: 7610361, cities: [{name:"Joinville", lat:-26.3045, lng:-48.8487}, {name:"Blumenau", lat:-26.9194, lng:-49.0661}, {name:"São José", lat:-27.6136, lng:-48.627}] },
+                "SP": { name: "São Paulo", regiao: "Sudeste", capital: "São Paulo", lat: -23.5505, lng: -46.6333, pop: 44411238, cities: [{name:"Guarulhos", lat:-23.4628, lng:-46.5333}, {name:"Campinas", lat:-22.9099, lng:-47.0626}, {name:"São Bernardo do Campo", lat:-23.6939, lng:-46.565}] },
+                "SE": { name: "Sergipe", regiao: "Nordeste", capital: "Aracaju", lat: -10.9472, lng: -37.0731, pop: 2209558, cities: [{name:"Nossa Senhora do Socorro", lat:-10.8542, lng:-37.1264}, {name:"Lagarto", lat:-10.915, lng:-37.6681}, {name:"Itabaiana", lat:-10.6861, lng:-37.4261}] },
+                "TO": { name: "Tocantins", regiao: "Norte", capital: "Palmas", lat: -10.1675, lng: -48.3277, pop: 1511460, cities: [{name:"Araguaína", lat:-7.1911, lng:-48.2072}, {name:"Gurupi", lat:-11.7292, lng:-49.0686}, {name:"Porto Nacional", lat:-10.7081, lng:-48.4172}] }
             };
 
-            // Cores mais fortes para dar contraste apenas nas bordas do mapa claro
             const REGION_COLORS = {
-                'Norte': '#16a34a',      // Verde Forte
-                'Nordeste': '#eab308',   // Amarelo/Ouro
-                'Centro-Oeste': '#db2777', // Rosa/Magenta Forte
-                'Sudeste': '#2563eb',    // Azul Forte
-                'Sul': '#7c3aed'         // Roxo Forte
+                'Norte': '#16a34a', 'Nordeste': '#eab308', 'Centro-Oeste': '#db2777', 'Sudeste': '#2563eb', 'Sul': '#7c3aed'
             };
 
             const State = {
                 currentState: null, grid: null, map: null, geoJsonLayer: null, markers: [],
-                defaultLayout: [], previousLayout: null, trafficChart: null,
-                clockInterval: null,
+                defaultLayout: [], previousLayout: null, trafficChart: null, clockInterval: null,
                 intervals: { news: null, general: null }
             };
 
@@ -423,7 +416,7 @@
                         if (details) { const detDiv = document.createElement('div'); detDiv.className = 'text-[9px] text-slate-500 ml-4 mt-0.5'; detDiv.innerText = typeof details === 'object' ? JSON.stringify(details) : details; div.appendChild(detDiv); }
                         this.container.appendChild(div);
                         if(this.parent) this.parent.scrollTop = this.parent.scrollHeight;
-                        if (this.container.children.length > 50) this.container.removeChild(this.container.firstChild);
+                        if (this.container.children.length > 100) this.container.removeChild(this.container.firstChild);
                     }
                 },
                 init() {
@@ -441,7 +434,6 @@
                 get name() { return document.getElementById('stateName'); },
                 get capital() { return document.getElementById('stateCapital'); },
                 get population() { return document.getElementById('population'); },
-                get governor() { return document.getElementById('governorName'); },
                 get ufCode() { return document.getElementById('ufCode'); },
                 get root() { return document.documentElement; },
                 
@@ -455,7 +447,7 @@
                     document.getElementById('btnCloseWiki').addEventListener('click', () => { document.getElementById('wikiModal').classList.add('hidden'); document.getElementById('wikiFrame').src = ''; });
                     document.getElementById('wikiFrame').addEventListener('load', () => document.getElementById('wikiLoader').classList.add('hidden'));
                     const bindLink = (elementId) => { const el = document.getElementById(elementId); if(!el) return; el.addEventListener('click', () => { let term = el.textContent.trim(); if(term === '--' || term === 'Buscando...') return; this.openModal(term); }); };
-                    bindLink('stateName'); bindLink('stateCapital'); bindLink('governorName');
+                    bindLink('stateName'); bindLink('stateCapital');
                 },
                 openModal(term) {
                     Logger.add('INFO', 'WIKI', `Abrindo artigo`, term);
@@ -483,28 +475,59 @@
                         if(this.getLuminance(...primary) < bgLum + 0.1) primary = [16, 185, 129];
                         if(this.getLuminance(...secondary) < bgLum + 0.1) secondary = [250, 204, 21];
                         UI.applyTheme(this.rgbToHex(...primary), this.rgbToHex(...secondary));
-                        Logger.add('OK', 'THEME', `Cores extraídas da bandeira`);
+                        Logger.add('OK', 'THEME', `Cores extraídas da bandeira com sucesso`);
                     } catch (e) {
-                        Logger.add('WARN', 'THEME', `Usando padrão verde/amarelo`, e.message);
+                        Logger.add('WARN', 'THEME', `Usando padrão verde/amarelo (Falha extração)`);
                         UI.applyTheme('#10b981', '#facc15');
                     }
                 }
             };
 
             const API = {
-                async fetch(url, options = {}, retries = 2) {
+                // Fetch Genérico com Cache Integrado e Logs Detalhados
+                async fetch(url, cacheKey, options = {}, retries = 2) {
+                    const domain = new URL(url).hostname;
                     for (let i = 0; i < retries; i++) {
-                        try { const res = await fetch(url, options); if (!res.ok) throw new Error(`HTTP ${res.status}`); return await res.json(); } 
-                        catch (err) { if (i === retries - 1) return null; await new Promise(r => setTimeout(r, 1000)); }
+                        try { 
+                            Logger.add('INFO', 'API_GET', `Acessando ${domain}... (Tentativa ${i+1}/${retries})`);
+                            const res = await fetch(url, options); 
+                            if (!res.ok) throw new Error(`HTTP ${res.status}`); 
+                            const data = await res.json(); 
+                            Logger.add('OK', 'API_GET', `Sucesso em ${domain}`);
+                            if(cacheKey) localStorage.setItem(cacheKey, JSON.stringify(data));
+                            return { data: data, cached: false };
+                        } 
+                        catch (err) { 
+                            Logger.add('WARN', 'API_GET', `Falha em ${domain} - HTTP Status/Erro: ${err.message}`);
+                            if (i === retries - 1) {
+                                Logger.add('ERROR', 'API_GET', `Desistindo de ${domain}. Tentando resgatar cache...`);
+                                if(cacheKey) {
+                                    const cached = localStorage.getItem(cacheKey);
+                                    if(cached) {
+                                        Logger.add('OK', 'CACHE', `Cache resgatado para chave: ${cacheKey}`);
+                                        return { data: JSON.parse(cached), cached: true };
+                                    }
+                                }
+                                Logger.add('ERROR', 'CACHE', `Nenhum cache disponível para ${cacheKey}`);
+                                return { data: null, cached: false };
+                            }
+                            await new Promise(r => setTimeout(r, 1000)); 
+                        }
                     }
                 },
+                // Fetch XML exclusivo para Notícias via RSS Google
                 async fetchXML(url) {
                     try { 
+                        Logger.add('INFO', 'API_XML', `Requisitando RSS via Proxy AllOrigins...`);
                         const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                         if (!res.ok) throw new Error(`Proxy HTTP ${res.status}`);
                         const data = await res.json();
+                        Logger.add('OK', 'API_XML', `RSS recebido. Fazendo parse...`);
                         return new DOMParser().parseFromString(data.contents, "text/xml");
-                    } catch (err) { Logger.add('ERROR', 'API_XML', `Falha RSS`, err.message); return null; }
+                    } catch (err) { 
+                        Logger.add('ERROR', 'API_XML', `Falha RSS -> "${err.message}"`); 
+                        return null; 
+                    }
                 }
             };
 
@@ -521,12 +544,11 @@
                 initMap() {
                     State.map = L.map('map', { zoomControl: false, maxBounds: [[-35, -75], [10, -30]], minZoom: 3 }).setView([-15, -55], 4);
                     
-                    // Mapa Claro e Colorido (OpenStreetMap)
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { 
-                        attribution: '&copy; OpenStreetMap' 
-                    }).addTo(State.map);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(State.map);
                     
-                    API.fetch('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson').then(data => {
+                    Logger.add('INFO', 'MAP', 'Carregando GeoJSON dos Estados Brasileiros...');
+                    API.fetch('https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson', 'map_geojson').then(result => {
+                        const data = result.data;
                         if(data) {
                             State.geoJsonLayer = L.geoJSON(data, {
                                 style: (feature) => {
@@ -534,75 +556,51 @@
                                     const regionInfo = BR_STATES[sigla]?.regiao || 'Sul';
                                     return { 
                                         color: REGION_COLORS[regionInfo], 
-                                        weight: 2, 
-                                        fillColor: REGION_COLORS[regionInfo], 
-                                        fillOpacity: 0.05, // Retirando a máscara de preenchimento 
+                                        weight: 2, fillColor: REGION_COLORS[regionInfo], 
+                                        fillOpacity: 0, // Máscara de preenchimento removida (0)
                                         className: 'state-polygon'
                                     };
                                 },
                                 onEachFeature: (feature, layer) => {
                                     layer.on('click', () => {
                                         const sigla = feature.properties.sigla;
-                                        if (UI.selector.value !== sigla) {
-                                            UI.selector.value = sigla;
-                                            DataEngine.changeState(sigla);
-                                        }
+                                        if (UI.selector.value !== sigla) { UI.selector.value = sigla; DataEngine.changeState(sigla); }
                                     });
                                 }
                             }).addTo(State.map);
                             this.highlightState(State.currentState.uf);
+                            Logger.add('OK', 'MAP', 'Mapa renderizado.');
+                        } else {
+                            Logger.add('ERROR', 'MAP', 'Falha ao renderizar mapa, sem dados.');
                         }
                     });
                 },
                 highlightState(uf) {
                     if(!State.geoJsonLayer || !State.map) return;
                     
-                    // Remove marcadores antigos de cidades
                     State.markers.forEach(m => State.map.removeLayer(m));
                     State.markers = [];
-
                     const s = BR_STATES[uf];
 
                     State.geoJsonLayer.eachLayer(layer => {
                         const layerUf = layer.feature.properties.sigla;
                         const regionInfo = BR_STATES[layerUf]?.regiao || 'Sul';
-                        
                         if(layerUf === uf) {
-                            // Contorno forte com cor tema para o selecionado
-                            layer.setStyle({ 
-                                color: 'var(--theme-primary)', 
-                                weight: 4, 
-                                fillColor: 'var(--theme-primary)', 
-                                fillOpacity: 0.15 
-                            });
+                            layer.setStyle({ color: 'var(--theme-primary)', weight: 4, fillOpacity: 0 }); // Destaca contorno com cor do tema
                             State.map.flyToBounds(layer.getBounds(), { padding: [20,20], duration: 1.5 });
                         } else {
-                            // Contorno da região fino para os não selecionados, zero preenchimento
-                            layer.setStyle({ 
-                                color: REGION_COLORS[regionInfo], 
-                                weight: 2, 
-                                fillColor: REGION_COLORS[regionInfo], 
-                                fillOpacity: 0.05 
-                            });
+                            layer.setStyle({ color: REGION_COLORS[regionInfo], weight: 2, fillOpacity: 0 });
                         }
                     });
 
-                    // Adiciona marcador da capital
-                    const capIcon = L.divIcon({ 
-                        className: 'custom-pin', 
-                        html: `<div style="background: var(--theme-primary); border: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div><div style="color:#000; background:rgba(255,255,255,0.9); padding: 2px 4px; border-radius:3px; font-weight:bold; font-size:10px; margin-top:2px; white-space:nowrap;">★ ${s.capital}</div>`, 
-                        iconSize: [20, 20], iconAnchor: [10, 10] 
-                    });
+                    // Marcador Capital
+                    const capIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background: var(--theme-primary); border: 2px solid #fff; border-radius: 50%; width: 16px; height: 16px; box-shadow: 0 0 10px rgba(0,0,0,0.5);"></div><div style="color:#000; background:rgba(255,255,255,0.9); padding: 2px 4px; border-radius:3px; font-weight:bold; font-size:10px; margin-top:2px; white-space:nowrap;">★ ${s.capital}</div>`, iconSize: [20, 20], iconAnchor: [10, 10] });
                     State.markers.push(L.marker([s.lat, s.lng], {icon: capIcon}).addTo(State.map));
 
-                    // Adiciona marcadores das cidades satélites (Acima de 1M hab. Pop DF é 2.8M)
+                    // Marcadores Satélites (Gama incluído no DF)
                     if (s.pop > 1000000 && s.cities && s.cities.length > 0) {
                         s.cities.forEach(city => {
-                            const cityIcon = L.divIcon({ 
-                                className: 'custom-pin', 
-                                html: `<div style="background: var(--theme-secondary); border: 1px solid #fff; border-radius: 50%; width: 10px; height: 10px;"></div><div style="color:#000; background:rgba(255,255,255,0.8); padding: 1px 3px; border-radius:2px; font-weight:600; font-size:9px; margin-top:2px; white-space:nowrap;">${city.name}</div>`, 
-                                iconSize: [10, 10], iconAnchor: [5, 5] 
-                            });
+                            const cityIcon = L.divIcon({ className: 'custom-pin', html: `<div style="background: var(--theme-secondary); border: 1px solid #fff; border-radius: 50%; width: 10px; height: 10px;"></div><div style="color:#000; background:rgba(255,255,255,0.8); padding: 1px 3px; border-radius:2px; font-weight:600; font-size:9px; margin-top:2px; white-space:nowrap;">${city.name}</div>`, iconSize: [10, 10], iconAnchor: [5, 5] });
                             State.markers.push(L.marker([city.lat, city.lng], {icon: cityIcon}).addTo(State.map));
                         });
                     }
@@ -610,23 +608,16 @@
                 renderTrafficChart(level) { 
                     const ctx = document.getElementById('trafficChart'); if(!ctx) return;
                     if (State.trafficChart) State.trafficChart.destroy();
-                    
                     Chart.defaults.color = '#94a3b8'; Chart.defaults.font.family = "'Inter', sans-serif";
                     
                     let color = '#10b981'; let text = 'TRÂNSITO LIVRE';
                     if(level > 4) { color = '#facc15'; text = 'MODERADO / LENTIDÃO'; }
                     if(level > 7) { color = '#ef4444'; text = 'TRÂNSITO INTENSO'; }
                     
-                    document.getElementById('trafficStatusText').innerText = text;
-                    document.getElementById('trafficStatusText').style.color = color;
-
+                    document.getElementById('trafficStatusText').innerText = text; document.getElementById('trafficStatusText').style.color = color;
                     State.trafficChart = new Chart(ctx, {
-                        type: 'doughnut',
-                        data: { datasets: [{ data: [level, 10 - level], backgroundColor: [color, '#1e293b'], borderWidth: 0 }] },
-                        options: { 
-                            responsive: true, maintainAspectRatio: false, circumference: 180, rotation: 270, cutout: '80%',
-                            plugins: { tooltip: {enabled: false}, legend: {display: false} }
-                        }
+                        type: 'doughnut', data: { datasets: [{ data: [level, 10 - level], backgroundColor: [color, '#1e293b'], borderWidth: 0 }] },
+                        options: { responsive: true, maintainAspectRatio: false, circumference: 180, rotation: 270, cutout: '80%', plugins: { tooltip: {enabled: false}, legend: {display: false} } }
                     });
                 }
             };
@@ -649,7 +640,7 @@
                     State.currentState = { uf: uf, ...s };
 
                     if(UI.name) UI.name.innerText = s.name; 
-                    if(UI.capital) UI.capital.innerText = s.capital; // Sem a palavra "Capital:" para não quebrar a Wiki
+                    if(UI.capital) UI.capital.innerText = s.capital; 
                     if(UI.population) UI.population.innerText = s.pop.toLocaleString('pt-BR'); 
                     if(UI.ufCode) UI.ufCode.innerText = uf;
                     
@@ -659,18 +650,17 @@
                         UI.flag.onload = () => ColorEngine.extract(UI.flag);
                     }
 
-                    if(UI.governor) UI.governor.innerText = s.governor;
-
                     VisEngine.highlightState(uf);
                     this.setupClock();
                     this.fetchHolidays();
-                    this.fetchNews(s.name);
+                    this.fetchNews(s.name, uf);
                     
                     this.executeGeneralFetch(s.capital, [s.lat, s.lng]);
 
                     if(State.intervals.news) clearInterval(State.intervals.news);
                     if(State.intervals.general) clearInterval(State.intervals.general);
-                    State.intervals.news = setInterval(() => this.fetchNews(s.name), 120000); 
+                    // Atualiza notícias a cada 2 min (120000 ms)
+                    State.intervals.news = setInterval(() => this.fetchNews(s.name, uf), 120000); 
                     State.intervals.general = setInterval(() => this.executeGeneralFetch(s.capital, [s.lat, s.lng]), 1800000);
                 },
 
@@ -687,8 +677,7 @@
                         if(['AM','MT','MS','RO','RR'].includes(uf)) offsetH = -4;
                         if(uf === 'AC') offsetH = -5;
                         
-                        const now = new Date(); 
-                        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+                        const now = new Date(); const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
                         const localTime = new Date(utc + (3600000 * offsetH));
                         
                         if(UI.clock) UI.clock.innerText = localTime.toLocaleTimeString('pt-BR', {hour12: false});
@@ -697,27 +686,39 @@
                 },
 
                 async fetchMarketData() {
-                    API.fetch('https://open.er-api.com/v6/latest/USD').then(data => { 
-                        if(data?.rates?.BRL) {
-                            document.getElementById('usdRate').innerText = `R$ ${data.rates.BRL.toFixed(2)}`;
-                            const eurBrl = data.rates.BRL / data.rates.EUR;
-                            document.getElementById('eurRate').innerText = `R$ ${eurBrl.toFixed(2)}`;
-                        }
-                    });
-                    API.fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1').then(data => {
-                        if(data && data[0]) document.getElementById('selicRate').innerText = `${data[0].valor}%`;
-                    });
+                    const stEcon = document.getElementById('econStatus');
+                    
+                    const cambData = await API.fetch('https://open.er-api.com/v6/latest/USD', 'cache_cambio');
+                    if(cambData.data?.rates?.BRL) {
+                        document.getElementById('usdRate').innerText = `R$ ${cambData.data.rates.BRL.toFixed(2)}`;
+                        const eurBrl = cambData.data.rates.BRL / cambData.data.rates.EUR;
+                        document.getElementById('eurRate').innerText = `R$ ${eurBrl.toFixed(2)}`;
+                    }
+
+                    const selicData = await API.fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1', 'cache_selic');
+                    if(selicData.data && selicData.data[0]) {
+                        document.getElementById('selicRate').innerText = `${selicData.data[0].valor}%`;
+                    }
+
+                    if(cambData.cached || selicData.cached) {
+                        if(stEcon) stEcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-500" title="Modo Offline (Cache)"></i>';
+                    } else {
+                        if(stEcon) stEcon.innerHTML = '';
+                    }
                 },
 
                 async fetchWeatherAndTraffic(latlng) {
                     const wBox = document.getElementById('climateWidget');
+                    const statusIcon = document.getElementById('weatherStatus');
                     UI.showLoading('climateWidget', 'Satélite...');
-                    const data = await API.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latlng[0]}&longitude=${latlng[1]}&current_weather=true`);
+                    
+                    const cacheKey = `cache_weather_${State.currentState.uf}`;
+                    const res = await API.fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latlng[0]}&longitude=${latlng[1]}&current_weather=true`, cacheKey);
                     
                     let isRaining = false;
                     
-                    if(data?.current_weather) {
-                        const w = data.current_weather; const wmo = w.weathercode; 
+                    if(res.data?.current_weather) {
+                        const w = res.data.current_weather; const wmo = w.weathercode; 
                         let icon = 'fa-cloud', desc = 'Nublado';
                         if(wmo === 0) { icon = 'fa-sun'; desc = 'Céu Limpo'; } 
                         else if(wmo > 0 && wmo < 4) { icon = 'fa-cloud-sun'; desc = 'Parc. Nublado'; } 
@@ -725,35 +726,27 @@
                         else if(wmo >= 95) { icon = 'fa-bolt'; desc = 'Tempestade'; isRaining = true; }
                         
                         if(wBox) wBox.innerHTML = `<div class="flex flex-col items-center text-center gap-2"><div class="text-5xl" id="weatherIcon"><i class="fa-solid ${icon}" style="color: var(--theme-secondary)"></i></div><div id="temperature" class="text-4xl font-bold tracking-tighter mt-2">${w.temperature}°C</div><div id="weatherDesc" class="text-sm text-slate-400 capitalize">${desc}</div></div>`;
+                        
+                        if(res.cached) { if(statusIcon) statusIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-500" title="Modo Offline (Cache)"></i>'; } 
+                        else { if(statusIcon) statusIcon.innerHTML = ''; }
+                    } else {
+                        UI.showError('climateWidget', 'Sem dados ou cache');
                     }
                     
                     this.simulateTraffic(isRaining);
                 },
                 
                 simulateTraffic(isRaining) {
-                    const now = new Date(); const hour = now.getHours();
-                    let baseLevel = 2; 
-                    if (hour >= 6 && hour < 9) baseLevel = 7;
-                    else if (hour >= 9 && hour < 16) baseLevel = 4;
-                    else if (hour >= 16 && hour < 20) baseLevel = 8;
-                    else if (hour >= 20 && hour < 23) baseLevel = 3; 
+                    const now = new Date(); const hour = now.getHours(); let baseLevel = 2; 
+                    if (hour >= 6 && hour < 9) baseLevel = 7; else if (hour >= 9 && hour < 16) baseLevel = 4;
+                    else if (hour >= 16 && hour < 20) baseLevel = 8; else if (hour >= 20 && hour < 23) baseLevel = 3; 
                     
-                    let randomMod = Math.floor(Math.random() * 3) - 1; 
-                    if(isRaining) baseLevel += 2; 
-                    
+                    let randomMod = Math.floor(Math.random() * 3) - 1; if(isRaining) baseLevel += 2; 
                     let finalLevel = Math.max(0, Math.min(10, baseLevel + randomMod));
                     VisEngine.renderTrafficChart(finalLevel);
                     
-                    const incContainer = document.getElementById('trafficIncidents');
-                    incContainer.innerHTML = '';
-                    
-                    const incidentsDB = [
-                        { t: 'Acidente leve', c: 'fa-car-burst', cor: 'text-red-400' },
-                        { t: 'Semáforo inoperante', c: 'fa-traffic-light', cor: 'text-yellow-400' },
-                        { t: 'Obras na via', c: 'fa-person-digging', cor: 'text-orange-400' },
-                        { t: 'Pista escorregadia', c: 'fa-droplet', cor: 'text-blue-400' },
-                        { t: 'Veículo quebrado', c: 'fa-triangle-exclamation', cor: 'text-yellow-500' }
-                    ];
+                    const incContainer = document.getElementById('trafficIncidents'); incContainer.innerHTML = '';
+                    const incidentsDB = [ { t: 'Acidente leve', c: 'fa-car-burst', cor: 'text-red-400' }, { t: 'Semáforo inoperante', c: 'fa-traffic-light', cor: 'text-yellow-400' }, { t: 'Obras na via', c: 'fa-person-digging', cor: 'text-orange-400' }, { t: 'Pista escorregadia', c: 'fa-droplet', cor: 'text-blue-400' }, { t: 'Veículo quebrado', c: 'fa-triangle-exclamation', cor: 'text-yellow-500' } ];
                     
                     let numInc = finalLevel < 3 ? 0 : (finalLevel < 7 ? 1 : 2);
                     if(numInc === 0) {
@@ -761,20 +754,20 @@
                     } else {
                         for(let i=0; i<numInc; i++) {
                             const ev = incidentsDB[Math.floor(Math.random()*incidentsDB.length)];
-                            const div = document.createElement('div');
-                            div.className = 'flex items-center gap-3 p-2 bg-slate-800/40 rounded border border-slate-700/50';
+                            const div = document.createElement('div'); div.className = 'flex items-center gap-3 p-2 bg-slate-800/40 rounded border border-slate-700/50';
                             div.innerHTML = `<i class="fa-solid ${ev.c} ${ev.cor}"></i><div class="text-[11px] font-medium">${ev.t} (Capital)</div>`;
                             incContainer.appendChild(div);
                         }
                     }
                 },
 
-                async fetchNews(stateName) {
+                async fetchNews(stateName, uf) {
                     if(UI.newsStatus) UI.newsStatus.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-slate-500"></i>';
                     UI.showLoading('newsFeed', 'Buscando imprensa local...');
                     
                     let query = encodeURIComponent(`"${stateName}" Brasil`);
                     const rssUrl = `https://news.google.com/rss/search?q=${query}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
+                    const cacheKey = `cache_news_${uf}`;
                     
                     const xmlDoc = await API.fetchXML(rssUrl);
                     if(UI.newsFeed) UI.newsFeed.innerHTML = ''; 
@@ -782,6 +775,7 @@
                     if(xmlDoc) {
                         const items = xmlDoc.querySelectorAll("item");
                         if(items.length > 0) {
+                            let newsArray = [];
                             Array.from(items).slice(0, 15).forEach(item => {
                                 const titleEl = item.querySelector("title"); const linkEl = item.querySelector("link"); 
                                 const pubDateEl = item.querySelector("pubDate"); const sourceEl = item.querySelector("source");
@@ -789,31 +783,58 @@
                                 const pubDate = pubDateEl ? new Date(pubDateEl.textContent).toLocaleDateString('pt-BR') : '';
                                 const source = sourceEl ? sourceEl.textContent : 'Imprensa';
                                 let cleanTitle = rawTitle; const splitIdx = cleanTitle.lastIndexOf(' - '); if(splitIdx > 0) cleanTitle = cleanTitle.substring(0, splitIdx);
-
-                                const div = document.createElement('a'); div.href = link; div.target = "_blank";
-                                div.className = 'block border-l-4 border-transparent hover:border-[var(--theme-primary)] hover:bg-slate-800/50 p-3 border-b border-slate-800 transition-all shrink-0 cursor-pointer group';
-                                div.innerHTML = `<div class="flex justify-between items-center text-[10px] text-slate-400 mb-1 font-mono"><span class="text-[var(--theme-secondary)] font-bold uppercase tracking-wider">${source}</span><span>${pubDate}</span></div><div class="text-slate-200 text-sm font-medium leading-tight group-hover:text-white transition-colors">${cleanTitle}</div>`;
-                                UI.newsFeed.appendChild(div);
+                                newsArray.push({title: cleanTitle, link: link, source: source, date: pubDate});
                             });
+                            localStorage.setItem(cacheKey, JSON.stringify(newsArray)); // Salva em cache
+                            this.renderNews(newsArray);
                             if(UI.newsStatus) UI.newsStatus.innerHTML = '<i class="fa-solid fa-check text-green-500"></i>';
                         } else { UI.showError('newsFeed', 'Nenhuma notícia.'); }
-                    } else { UI.showError('newsFeed', 'Falha no feed RSS.'); }
+                    } else { 
+                        // Falha na requisição, buscar do cache
+                        Logger.add('WARN', 'NEWS', 'Recorrendo ao cache de notícias...');
+                        const cachedData = localStorage.getItem(cacheKey);
+                        if(cachedData) {
+                            Logger.add('OK', 'NEWS', 'Cache carregado para notícias.');
+                            this.renderNews(JSON.parse(cachedData));
+                            if(UI.newsStatus) UI.newsStatus.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-500" title="Modo Offline (Dados em Cache)"></i>';
+                        } else {
+                            UI.showError('newsFeed', 'Falha no feed e sem cache.'); 
+                            if(UI.newsStatus) UI.newsStatus.innerHTML = '<i class="fa-solid fa-xmark text-red-500"></i>';
+                        }
+                    }
+                },
+
+                renderNews(newsArray) {
+                    if(!UI.newsFeed) return;
+                    UI.newsFeed.innerHTML = '';
+                    newsArray.forEach(news => {
+                        const div = document.createElement('a'); div.href = news.link; div.target = "_blank";
+                        div.className = 'block border-l-4 border-transparent hover:border-[var(--theme-primary)] hover:bg-slate-800/50 p-3 border-b border-slate-800 transition-all shrink-0 cursor-pointer group';
+                        div.innerHTML = `<div class="flex justify-between items-center text-[10px] text-slate-400 mb-1 font-mono"><span class="text-[var(--theme-secondary)] font-bold uppercase tracking-wider">${news.source}</span><span>${news.date}</span></div><div class="text-slate-200 text-sm font-medium leading-tight group-hover:text-white transition-colors">${news.title}</div>`;
+                        UI.newsFeed.appendChild(div);
+                    });
                 },
 
                 async fetchHolidays() {
                     UI.showLoading('holidaysList', 'Buscando feriados...');
+                    const statusIcon = document.getElementById('holidayStatus');
                     const listEl = document.getElementById('holidaysList');
-                    const data = await API.fetch(`https://date.nager.at/api/v3/NextPublicHolidays/BR`);
+                    
+                    const res = await API.fetch(`https://date.nager.at/api/v3/NextPublicHolidays/BR`, 'cache_holidays');
                     
                     if(listEl) listEl.innerHTML = '';
-                    if(data && data.length > 0) {
-                        data.slice(0, 4).forEach(h => {
+                    if(res.data && res.data.length > 0) {
+                        res.data.slice(0, 4).forEach(h => {
                             const dateObj = new Date(h.date); const dateStr = dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                             const div = document.createElement('div'); div.className = 'flex items-center px-4 py-3 border-b border-slate-700/50 hover:bg-slate-800/30 transition-colors shrink-0';
                             div.innerHTML = `<div class="bg-slate-900 border border-slate-600 border-l-4 border-l-[var(--theme-secondary)] text-slate-200 font-mono font-bold text-[11px] px-2 py-1 rounded mr-3 shadow shrink-0">${dateStr}</div><div class="flex flex-col overflow-hidden"><span class="text-sm font-bold text-slate-200 truncate">${h.localName}</span><span class="text-[10px] text-slate-400 truncate">Feriado Nacional</span></div>`;
                             listEl.appendChild(div);
                         });
-                    } else { UI.showError('holidaysWidget', 'Sem dados'); }
+                        if(res.cached) { if(statusIcon) statusIcon.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-yellow-500" title="Modo Offline (Cache)"></i>'; } 
+                        else { if(statusIcon) statusIcon.innerHTML = ''; }
+                    } else { 
+                        UI.showError('holidaysWidget', 'Sem dados'); 
+                    }
                 }
             };
 
